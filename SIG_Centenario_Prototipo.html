@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIG · Parque Industrial Centenario — Prototipo</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#16243f; --navy2:#1f3864; --blue:#2e5496; --accent:#2e75b6; --accent2:#37a0c4;
+    --ink:#1a2230; --muted:#62718a; --line:#e3e9f2; --panel:#f6f8fc; --card:#ffffff;
+    --occ:#3a6fb0; --ok:#2e9e6b; --warn:#e0a52e; --bad:#d6485b;
+    --rail-w:236px; --right-w:330px; --top-h:58px; --bottom-h:30px;
+    --shadow:0 1px 2px rgba(20,36,63,.06),0 6px 20px rgba(20,36,63,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--panel);overflow:hidden}
+  .app{display:grid;grid-template-columns:var(--rail-w) 1fr var(--right-w);
+       grid-template-rows:var(--top-h) 1fr var(--bottom-h);height:100vh;
+       grid-template-areas:"rail top top" "rail map right" "rail status status";}
+
+  /* ---------- Left rail ---------- */
+  .rail{grid-area:rail;background:linear-gradient(180deg,var(--navy),var(--navy2));color:#dce6f5;
+        display:flex;flex-direction:column;border-right:1px solid #0c1626}
+  .brand{padding:18px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .brand .mark{display:flex;align-items:center;gap:10px}
+  .mark .logo{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));font-family:'Space Grotesk';font-weight:700;color:#fff;font-size:15px;letter-spacing:.5px}
+  .brand .name{font-family:'Space Grotesk';font-weight:700;font-size:14.5px;color:#fff;line-height:1.1}
+  .brand .sub{font-size:11px;color:#9fb3d4;margin-top:2px;letter-spacing:.2px}
+  .navlabel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7f93b8;padding:16px 18px 6px}
+  .nav{display:flex;flex-direction:column;gap:2px;padding:0 10px}
+  .nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:8px;
+      font-size:13.5px;color:#cdd9ee;font-weight:500;transition:background .15s,color .15s}
+  .nav button .ic{width:17px;height:17px;flex:0 0 17px;opacity:.85}
+  .nav button:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav button.active{background:rgba(55,160,196,.18);color:#fff;box-shadow:inset 2px 0 0 var(--accent2)}
+  .rail .foot{margin-top:auto;padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#8ea4c8}
+  .rail .foot b{color:#cdd9ee;font-weight:600}
+
+  /* ---------- Top bar ---------- */
+  .top{grid-area:top;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 18px}
+  .top h1{font-family:'Space Grotesk';font-size:16px;margin:0;font-weight:600;color:var(--navy2);white-space:nowrap}
+  .top .crumb{font-size:11.5px;color:var(--muted)}
+  .search{margin-left:8px;flex:1;max-width:360px;position:relative}
+  .search input{width:100%;border:1px solid var(--line);background:#fbfcfe;border-radius:9px;padding:8px 12px 8px 32px;
+      font-family:Inter;font-size:13px;color:var(--ink);outline:none}
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,117,182,.12)}
+  .search svg{position:absolute;left:10px;top:9px;width:15px;height:15px;color:var(--muted)}
+  .top .spacer{flex:1}
+  .badge{font-size:10.5px;font-weight:600;letter-spacing:.06em;padding:4px 9px;border-radius:999px;
+      background:#fff5e6;color:#a9741a;border:1px solid #f3dcae}
+  .live{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono';font-size:11.5px;color:var(--muted)}
+  .live .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(46,158,107,.18)}
+
+  /* ---------- Map ---------- */
+  #map{grid-area:map;width:100%;height:100%;background:#e9eef4}
+  .leaflet-container{font-family:Inter}
+  .lot-label{font-family:'IBM Plex Mono';font-size:10px;color:#22324c;font-weight:500;
+      text-shadow:0 1px 2px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.9);background:none;border:none}
+  .maptag{position:absolute;z-index:500;left:14px;top:12px;background:rgba(255,255,255,.92);
+      backdrop-filter:blur(4px);border:1px solid var(--line);border-radius:10px;padding:9px 12px;box-shadow:var(--shadow);max-width:260px}
+  .maptag .t{font-family:'Space Grotesk';font-weight:600;font-size:12.5px;color:var(--navy2)}
+  .maptag .d{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.35}
+
+  /* ---------- Right panel ---------- */
+  .right{grid-area:right;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px}
+  .panel-title{font-family:'Space Grotesk';font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:2px 2px 10px}
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 13px;box-shadow:var(--shadow)}
+  .kpi .v{font-family:'Space Grotesk';font-size:23px;font-weight:700;color:var(--navy2);line-height:1}
+  .kpi .l{font-size:11px;color:var(--muted);margin-top:5px}
+  .kpi .v.small{font-size:19px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px;box-shadow:var(--shadow);margin-bottom:12px}
+  .card h3{font-family:'Space Grotesk';margin:0 0 9px;font-size:13px;color:var(--ink);font-weight:600}
+  .legend{display:flex;flex-direction:column;gap:7px}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink)}
+  .sw{width:13px;height:13px;border-radius:4px;flex:0 0 13px;border:1px solid rgba(0,0,0,.12)}
+  .dotmark{width:11px;height:11px;border-radius:50%;flex:0 0 11px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+  .legend .row b{margin-left:auto;font-family:'IBM Plex Mono';font-size:12px;color:var(--muted);font-weight:500}
+  .meta{display:flex;flex-direction:column;gap:0}
+  .meta .r{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+  .meta .r:last-child{border-bottom:none}
+  .meta .r span{color:var(--muted)} .meta .r b{font-weight:600;color:var(--ink);text-align:right;font-family:'IBM Plex Mono';font-size:12px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px}
+  .pill .pdot{width:7px;height:7px;border-radius:50%}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{font-size:11.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-weight:500;transition:.15s}
+  .chip.on{background:var(--navy2);color:#fff;border-color:var(--navy2)}
+  .list{display:flex;flex-direction:column;gap:7px}
+  .item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 11px;cursor:pointer;transition:.15s}
+  .item:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,117,182,.08)}
+  .item .ix{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-family:'IBM Plex Mono';font-size:11px;font-weight:600;color:#fff;flex:0 0 30px}
+  .item .tx{min-width:0}
+  .item .tx .n{font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .tx .s{font-size:11px;color:var(--muted)}
+  .item .ar{margin-left:auto;font-size:11px;font-family:'IBM Plex Mono';color:var(--muted)}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.45;background:#eef3fb;border:1px dashed #cfdcef;border-radius:10px;padding:10px 12px}
+  .alert{display:flex;gap:9px;align-items:flex-start;font-size:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .alert:last-child{border-bottom:none}
+  .alert .ad{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:0 0 8px}
+  .alert .at{color:var(--muted)} .alert .at b{color:var(--ink);font-weight:600}
+
+  /* ---------- Status bar ---------- */
+  .status{grid-area:status;background:var(--navy);color:#aebfdc;display:flex;align-items:center;gap:18px;padding:0 16px;
+      font-family:'IBM Plex Mono';font-size:11px}
+  .status .s{display:flex;align-items:center;gap:6px}
+  .status b{color:#dce6f5;font-weight:500}
+  .status .spacer{flex:1}
+
+  .leaflet-popup-content{font-family:Inter;font-size:12.5px;margin:10px 12px}
+  .leaflet-popup-content b{font-family:'Space Grotesk'}
+  .substation-icon{filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))}
+  @media (max-width:1100px){
+    .app{grid-template-columns:64px 1fr;grid-template-areas:"rail top" "rail map" "rail status";}
+    .right{display:none}.brand .name,.brand .sub,.nav button span,.navlabel,.rail .foot{display:none}
+    .nav button{justify-content:center}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- RAIL -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="mark">
+        <div class="logo">PIC</div>
+        <div><div class="name">Centenario · SIG</div><div class="sub">Gestión territorial y de activos</div></div>
+      </div>
+    </div>
+    <div class="navlabel">Módulos</div>
+    <nav class="nav" id="nav">
+      <button data-mod="panel" class="active">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        <span>Panel general</span>
+      </button>
+      <button data-mod="catastro">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3Z"/><path d="M9 3v15M15 6v15"/></svg>
+        <span>Catastro de lotes</span>
+      </button>
+      <button data-mod="inquilinos">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>
+        <span>Inquilinos y oferta</span>
+      </button>
+      <button data-mod="alumbrado">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12c.7.7 1 1.4 1 2h6c0-.6.3-1.3 1-2a7 7 0 0 0-4-12Z"/></svg>
+        <span>Alumbrado público</span>
+      </button>
+      <button data-mod="activos">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
+        <span>Activos eléctricos</span>
+      </button>
+    </nav>
+    <div class="foot">
+      <b>Demostración</b><br>Datos de muestra sobre cartografía real. Reemplazables por el catastro del parque.
+    </div>
+  </aside>
+
+  <!-- TOP -->
+  <header class="top">
+    <h1 id="mod-title">Panel general</h1>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+      <input id="search" placeholder="Buscar lote o inquilino (ej. L-204)…" autocomplete="off">
+    </div>
+    <div class="spacer"></div>
+    <span class="badge">DATOS DE DEMOSTRACIÓN</span>
+    <div class="live"><span class="dot"></span> En línea</div>
+  </header>
+
+  <!-- MAP -->
+  <div id="map">
+    <div class="maptag">
+      <div class="t" id="tag-t">Parque Industrial Centenario</div>
+      <div class="d" id="tag-d">Zona Industrial Mieleras · Torreón–Matamoros, Coahuila</div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <aside class="right" id="right"></aside>
+
+  <!-- STATUS -->
+  <footer class="status">
+    <div class="s">Centro <b id="st-center">25.4780, -103.4950</b></div>
+    <div class="s">Cursor <b id="st-cursor">—</b></div>
+    <div class="s">Zoom <b id="st-zoom">16</b></div>
+    <div class="spacer"></div>
+    <div class="s">Base <b>OpenStreetMap</b></div>
+    <div class="s">SRC <b>EPSG:4326</b></div>
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ============================================================
+   CONFIG — ajusta el centro al polígono real del parque
+   ============================================================ */
+const CONFIG = {
+  center: [25.4780, -103.4950],   // Zona Mieleras (aprox). Sustituir por coords exactas.
+  zoom: 16,
+  name: "Parque Industrial Centenario"
+};
+
+/* ---------- helpers geográficos ---------- */
+const R_LAT = 110600;
+function mLng(lat){ return 111320*Math.cos(lat*Math.PI/180); }
+function off(lat,lng,dx,dy){ return [lat + dy/R_LAT, lng + dx/mLng(lat)]; }
+const C = CONFIG.center;
+
+const COL = { occ:'#3a6fb0', ok:'#2e9e6b', warn:'#e0a52e', bad:'#d6485b', occL:'#cfddef' };
+const STATUS = {
+  ocupado:    {c:COL.occ,  label:'Ocupado'},
+  disponible: {c:COL.ok,   label:'Disponible'},
+  proceso:    {c:COL.warn, label:'En proceso'}
+};
+const TENANTS = ['Manufactura Lagunera','AutoPartes del Norte','Logística Centenario','Metalmecánica RGV',
+  'AgroAlimentos Coahuila','Aeropartes MX','Plásticos Industriales','Arneses Laguna','Componentes Mieleras','Empaques del Bravo'];
+
+/* ---------- generar lotes (grid realista) ---------- */
+function hash(n){ let x=Math.sin(n*97.13)*43758.5453; return x-Math.floor(x); }
+const LOTS=[];
+(function(){
+  const cols=8, rows=5, lotW=120, lotH=128, gapX=34, gapY=42;
+  const startX=-((cols*lotW+(cols-1)*gapX)/2);
+  const startY= ((rows*lotH+(rows-1)*gapY)/2);
+  let id=200;
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      id++;
+      const x0=startX + c*(lotW+gapX);
+      const y0=startY - r*(lotH+gapY) - (r>=3?40:0); // hueco central = boulevard
+      const w=lotW*(0.9+hash(id)*0.18), h=lotH*(0.92+hash(id*3)*0.14);
+      const ring=[ off(C[0],C[1],x0,y0), off(C[0],C[1],x0+w,y0),
+                   off(C[0],C[1],x0+w,y0-h), off(C[0],C[1],x0,y0-h) ];
+      const cx=x0+w/2, cy=y0-h/2;
+      const hv=hash(id*7);
+      let st = hv<0.5?'ocupado': hv<0.78?'disponible':'proceso';
+      const areaHa=(w*h)/10000;
+      LOTS.push({ id:'L-'+id, st, ring, center:off(C[0],C[1],cx,cy),
+        w:Math.round(w), h:Math.round(h), area:areaHa,
+        tenant: st==='ocupado'? TENANTS[id%TENANTS.length]:null,
+        giro: ['Automotriz','Metalmecánica','Logística','Agroalimentario','Aeroespacial'][id%5] });
+    }
+  }
+})();
+
+/* ---------- luminarias (sobre calles) ---------- */
+const LUMS=[];
+(function(){
+  let n=0;
+  for(let i=0;i<LOTS.length;i++){
+    const L=LOTS[i];
+    const p=off(L.center[0],L.center[1], -(L.w/2)-17, (L.h/2)+12); // esquina/calle
+    n++; const hv=hash(n*11);
+    const st = hv<0.82?'operando': hv<0.93?'mantenimiento':'falla';
+    LUMS.push({ id:'A-'+(1000+n), pos:p, st, w:[70,100,120,150][n%4], tech:n%3?'LED':'Vapor de sodio' });
+  }
+})();
+const LUM_COL={operando:COL.ok, mantenimiento:COL.warn, falla:COL.bad};
+const LUM_LBL={operando:'Operando', mantenimiento:'Mantenimiento', falla:'Falla'};
+
+/* ---------- activos eléctricos ---------- */
+const SUBST = { pos: off(C[0],C[1], -560, -300), mva:40, kv:'115/13.8 kV' };
+const TRAFOS=[];
+(function(){
+  const pts=[[-360,300],[120,260],[-360,-40],[260,-30],[-120,-280],[330,-300]];
+  pts.forEach((p,i)=>{
+    const hv=hash(i*13);
+    TRAFOS.push({ id:'TR-'+(i+1), pos:off(C[0],C[1],p[0],p[1]),
+      kva:[300,500,750,1000][i%4], load:Math.round(45+hv*45), st: hv<0.85?'normal':'alta' });
+  });
+})();
+
+/* ============================================================
+   MAPA
+   ============================================================ */
+const map = L.map('map',{zoomControl:true,attributionControl:true}).setView(C, CONFIG.zoom);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+
+const gLots=L.layerGroup(), gLabels=L.layerGroup(), gLum=L.layerGroup(), gElec=L.layerGroup();
+let lotShapes={};
+
+function drawLots(mode){
+  gLots.clearLayers(); gLabels.clearLayers(); lotShapes={};
+  LOTS.forEach(lt=>{
+    let fill=STATUS[lt.st].c, op=0.55, weight=1.4, stroke='#ffffff';
+    if(mode==='dim'){ fill=COL.occL; op=0.35; stroke='#b9c8de'; }
+    if(mode==='inq'){ // resaltar disponibles
+      if(lt.st==='disponible'){ fill=COL.ok; op=0.7; weight=2; }
+      else { fill='#c9d6e8'; op=0.4; }
+    }
+    const poly=L.polygon(lt.ring,{color:stroke,weight:weight,fillColor:fill,fillOpacity:op});
+    poly.on('mouseover',()=>poly.setStyle({weight:2.4,color:'#1f3864'}));
+    poly.on('mouseout',()=>poly.setStyle({weight:weight,color:stroke}));
+    poly.on('click',()=>selectLot(lt));
+    poly.addTo(gLots); lotShapes[lt.id]=poly;
+    if(mode!=='dim'){
+      L.marker(lt.center,{interactive:false,icon:L.divIcon({className:'lot-label',html:lt.id,iconSize:[40,12]})}).addTo(gLabels);
+    }
+  });
+}
+function drawLum(){
+  gLum.clearLayers();
+  LUMS.forEach(a=>{
+    L.circleMarker(a.pos,{radius:5,color:'#fff',weight:1.5,fillColor:LUM_COL[a.st],fillOpacity:1})
+      .on('click',()=>selectLum(a))
+      .bindTooltip(a.id,{direction:'top',offset:[0,-4]}).addTo(gLum);
+  });
+}
+function drawElec(){
+  gElec.clearLayers();
+  // líneas MT subestación → trafos
+  TRAFOS.forEach(t=> L.polyline([SUBST.pos,t.pos],{color:'#b6862e',weight:2,opacity:.7,dashArray:'4 4'}).addTo(gElec));
+  TRAFOS.forEach(t=>{
+    L.circleMarker(t.pos,{radius:7,color:'#fff',weight:2,fillColor: t.st==='alta'?COL.bad:COL.accent2||'#2e75b6',fillOpacity:1})
+      .on('click',()=>selectTrafo(t)).bindTooltip(t.id,{direction:'top'}).addTo(gElec);
+  });
+  const sIcon=L.divIcon({className:'substation-icon',iconSize:[34,34],html:
+    '<div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1f3864,#2e75b6);'
+    +'display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg></div>'});
+  L.marker(SUBST.pos,{icon:sIcon}).on('click',()=>selectSubst()).bindTooltip('Subestación 40 MVA',{direction:'top'}).addTo(gElec);
+}
+
+/* boundary del parque */
+const BParkNW=off(C[0],C[1],-700,520), BParkSE=off(C[0],C[1],700,-520);
+L.rectangle([BParkNW,BParkSE],{color:'#1f3864',weight:2.2,fill:false,dashArray:'2 6'}).addTo(map);
+
+/* ============================================================
+   PANEL DERECHO + MÓDULOS
+   ============================================================ */
+const right=document.getElementById('right');
+const titleEl=document.getElementById('mod-title');
+const TITLES={panel:'Panel general',catastro:'Catastro de lotes',inquilinos:'Inquilinos y oferta comercial',
+  alumbrado:'Alumbrado público',activos:'Activos eléctricos'};
+
+function counts(){
+  const t={ocupado:0,disponible:0,proceso:0};
+  LOTS.forEach(L=>t[L.st]++); return t;
+}
+function pill(c,txt){return `<span class="pill" style="background:${c}1f;color:${c}"><span class="pdot" style="background:${c}"></span>${txt}</span>`;}
+
+function renderPanel(){
+  const t=counts(), total=LOTS.length, occ=t.ocupado, occPct=Math.round(occ/total*100);
+  const lumFalla=LUMS.filter(a=>a.st==='falla').length, lumMant=LUMS.filter(a=>a.st==='mantenimiento').length;
+  right.innerHTML=`
+   <div class="panel-title">Indicadores del parque</div>
+   <div class="kpis">
+     <div class="kpi"><div class="v">${total}</div><div class="l">Lotes registrados</div></div>
+     <div class="kpi"><div class="v">${occPct}%</div><div class="l">Ocupación</div></div>
+     <div class="kpi"><div class="v small" style="color:${COL.ok}">${t.disponible}</div><div class="l">Lotes disponibles</div></div>
+     <div class="kpi"><div class="v small" style="color:${COL.warn}">${t.proceso}</div><div class="l">En proceso</div></div>
+     <div class="kpi"><div class="v small">${LUMS.length}</div><div class="l">Luminarias</div></div>
+     <div class="kpi"><div class="v small">${TRAFOS.length+1}</div><div class="l">Activos eléctricos</div></div>
+   </div>
+   <div class="card"><h3>Ocupación territorial</h3>
+     <div class="legend">
+       <div class="row"><span class="sw" style="background:${COL.occ}"></span>Ocupado <b>${t.ocupado}</b></div>
+       <div class="row"><span class="sw" style="background:${COL.ok}"></span>Disponible <b>${t.disponible}</b></div>
+       <div class="row"><span class="sw" style="background:${COL.warn}"></span>En proceso <b>${t.proceso}</b></div>
+     </div></div>
+   <div class="card"><h3>Alertas operativas</h3>
+     <div class="alert"><span class="ad" style="background:${COL.bad}"></span><span class="at"><b>${lumFalla} luminarias</b> reportan falla en sector norte</span></div>
+     <div class="alert"><span class="ad" style="background:${COL.warn}"></span><span class="at"><b>${lumMant} luminarias</b> con mantenimiento programado</span></div>
+     <div class="alert"><span class="ad" style="background:${COL.bad}"></span><span class="at"><b>TR-? con carga alta</b> — revisar transformadores en módulo Activos</span></div>
+     <div class="alert"><span class="ad" style="background:${COL.ok}"></span><span class="at"><b>${t.disponible} lotes</b> listos para comercializar</span></div>
+   </div>
+   <div class="hint">Selecciona un módulo en el menú para explorar el catastro, los inquilinos, el alumbrado o la red eléctrica sobre el mapa real.</div>`;
+}
+
+let activeFilter='todos';
+function renderCatastro(sel){
+  const t=counts();
+  right.innerHTML=`
+   <div class="panel-title">Filtrar por estatus</div>
+   <div class="chips" id="chips">
+     <span class="chip ${activeFilter==='todos'?'on':''}" data-f="todos">Todos (${LOTS.length})</span>
+     <span class="chip ${activeFilter==='ocupado'?'on':''}" data-f="ocupado">Ocupados (${t.ocupado})</span>
+     <span class="chip ${activeFilter==='disponible'?'on':''}" data-f="disponible">Disponibles (${t.disponible})</span>
+     <span class="chip ${activeFilter==='proceso'?'on':''}" data-f="proceso">En proceso (${t.proceso})</span>
+   </div>
+   <div id="lotdetail">${sel?lotCard(sel):`<div class="hint">Haz clic en cualquier lote del mapa para ver su ficha: clave, superficie, medidas, uso y estatus.</div>`}</div>`;
+  document.querySelectorAll('#chips .chip').forEach(ch=>ch.onclick=()=>{
+    activeFilter=ch.dataset.f; applyFilter(); renderCatastro(sel);
+  });
+}
+function lotCard(L){
+  const s=STATUS[L.st];
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+      <h3 style="margin:0">Lote ${L.id}</h3>${pill(s.c,s.label)}</div>
+    <div class="meta">
+      <div class="r"><span>Superficie</span><b>${L.area.toFixed(2)} ha</b></div>
+      <div class="r"><span>Medidas (frente × fondo)</span><b>${L.w} × ${L.h} m</b></div>
+      <div class="r"><span>Uso / vocación</span><b>${L.giro}</b></div>
+      <div class="r"><span>Inquilino</span><b>${L.tenant||'—'}</b></div>
+      <div class="r"><span>Coordenadas</span><b>${L.center[0].toFixed(5)}, ${L.center[1].toFixed(5)}</b></div>
+    </div></div>`;
+}
+function applyFilter(){
+  LOTS.forEach(L=>{
+    const sh=lotShapes[L.id]; if(!sh)return;
+    const show = activeFilter==='todos'||L.st===activeFilter;
+    sh.setStyle({fillOpacity: show?0.6:0.06, opacity: show?1:0.25});
+  });
+}
+
+function renderInquilinos(){
+  const disp=LOTS.filter(L=>L.st==='disponible');
+  const occ=LOTS.filter(L=>L.st==='ocupado');
+  right.innerHTML=`
+   <div class="card" style="background:linear-gradient(135deg,#1f3864,#2e75b6);border:none;color:#fff">
+     <h3 style="color:#fff">Oferta comercial</h3>
+     <div style="font-size:12.5px;color:#d7e3f5;line-height:1.5">${disp.length} lotes disponibles ·
+       ${disp.reduce((a,b)=>a+b.area,0).toFixed(1)} ha comercializables</div>
+   </div>
+   <div class="panel-title">Lotes disponibles</div>
+   <div class="list" id="lst-disp">
+     ${disp.map(L=>`<div class="item" data-id="${L.id}">
+        <div class="ix" style="background:${COL.ok}">${L.area.toFixed(1)}</div>
+        <div class="tx"><div class="n">${L.id} · ${L.giro}</div><div class="s">${L.w}×${L.h} m</div></div>
+        <div class="ar">ha</div></div>`).join('')}
+   </div>
+   <div class="panel-title" style="margin-top:14px">Inquilinos instalados</div>
+   <div class="list" id="lst-occ">
+     ${occ.slice(0,8).map(L=>`<div class="item" data-id="${L.id}">
+        <div class="ix" style="background:${COL.occ}">${L.tenant.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
+        <div class="tx"><div class="n">${L.tenant}</div><div class="s">${L.id} · ${L.giro}</div></div>
+        <div class="ar">›</div></div>`).join('')}
+   </div>`;
+  right.querySelectorAll('.item').forEach(it=>it.onclick=()=>{
+    const L=LOTS.find(x=>x.id===it.dataset.id); if(L) selectLot(L);
+  });
+}
+
+function renderAlumbrado(sel){
+  const op=LUMS.filter(a=>a.st==='operando').length;
+  const ma=LUMS.filter(a=>a.st==='mantenimiento').length;
+  const fa=LUMS.filter(a=>a.st==='falla').length;
+  const kw=(LUMS.reduce((a,b)=>a+b.w,0)/1000).toFixed(1);
+  right.innerHTML=`
+   <div class="kpis">
+     <div class="kpi"><div class="v">${LUMS.length}</div><div class="l">Luminarias</div></div>
+     <div class="kpi"><div class="v small">${kw} kW</div><div class="l">Carga instalada</div></div>
+   </div>
+   <div class="card"><h3>Estado de la red</h3>
+     <div class="legend">
+       <div class="row"><span class="dotmark" style="background:${COL.ok}"></span>Operando <b>${op}</b></div>
+       <div class="row"><span class="dotmark" style="background:${COL.warn}"></span>Mantenimiento <b>${ma}</b></div>
+       <div class="row"><span class="dotmark" style="background:${COL.bad}"></span>Falla <b>${fa}</b></div>
+     </div></div>
+   <div id="lumdetail">${sel?lumCard(sel):`<div class="hint">Cada punto es una luminaria georreferenciada. Haz clic para ver su tipo, potencia, estado y último mantenimiento.</div>`}</div>`;
+}
+function lumCard(a){
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+      <h3 style="margin:0">Luminaria ${a.id}</h3>${pill(LUM_COL[a.st],LUM_LBL[a.st])}</div>
+    <div class="meta">
+      <div class="r"><span>Tecnología</span><b>${a.tech}</b></div>
+      <div class="r"><span>Potencia</span><b>${a.w} W</b></div>
+      <div class="r"><span>Último mantenimiento</span><b>${a.st==='falla'?'Vencido':'Al día'}</b></div>
+      <div class="r"><span>Coordenadas</span><b>${a.pos[0].toFixed(5)}, ${a.pos[1].toFixed(5)}</b></div>
+    </div></div>`;
+}
+
+function renderActivos(sel){
+  right.innerHTML=`
+   <div class="card" style="border-left:3px solid ${COL.accent2||'#2e75b6'}">
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+       <h3 style="margin:0">Subestación</h3>${pill(COL.ok,'Normal')}</div>
+     <div class="meta">
+       <div class="r"><span>Capacidad</span><b>${SUBST.mva} MVA</b></div>
+       <div class="r"><span>Tensión</span><b>${SUBST.kv}</b></div>
+       <div class="r"><span>Alimentadores</span><b>${TRAFOS.length}</b></div>
+     </div></div>
+   <div class="panel-title">Transformadores</div>
+   <div class="list">
+     ${TRAFOS.map(t=>`<div class="item" data-id="${t.id}">
+        <div class="ix" style="background:${t.st==='alta'?COL.bad:COL.occ}">${t.kva>=1000?'1k':t.kva}</div>
+        <div class="tx"><div class="n">${t.id} · ${t.kva} kVA</div><div class="s">Carga ${t.load}%</div></div>
+        <div class="ar">${t.st==='alta'?'⚠':'›'}</div></div>`).join('')}
+   </div>
+   <div class="hint" style="margin-top:12px">Las líneas punteadas representan la red de media tensión que conecta la subestación con los transformadores de distribución.</div>`;
+  right.querySelectorAll('.item').forEach(it=>it.onclick=()=>{
+    const t=TRAFOS.find(x=>x.id===it.dataset.id); if(t) selectTrafo(t);
+  });
+}
+
+/* ---------- selección cruzada mapa ↔ panel ---------- */
+function flyTo(latlng,z){ map.flyTo(latlng, z||17, {duration:.6}); }
+function selectLot(L){
+  if(currentMod!=='catastro' && currentMod!=='inquilinos'){ setModule('catastro'); }
+  Object.values(lotShapes).forEach(s=>s.setStyle({color:'#fff',weight:1.4}));
+  lotShapes[L.id]?.setStyle({color:'#1f3864',weight:3});
+  flyTo(L.center,17);
+  lotShapes[L.id]?.bindPopup(`<b>${L.id}</b><br>${STATUS[L.st].label} · ${L.area.toFixed(2)} ha${L.tenant?'<br>'+L.tenant:''}`).openPopup();
+  if(currentMod==='catastro') renderCatastro(L);
+}
+function selectLum(a){ if(currentMod!=='alumbrado')setModule('alumbrado'); flyTo(a.pos,18); renderAlumbrado(a); }
+function selectTrafo(t){ if(currentMod!=='activos')setModule('activos'); flyTo(t.pos,17);
+  L.popup().setLatLng(t.pos).setContent(`<b>${t.id}</b><br>${t.kva} kVA · carga ${t.load}%`).openOn(map); }
+function selectSubst(){ flyTo(SUBST.pos,17);
+  L.popup().setLatLng(SUBST.pos).setContent(`<b>Subestación</b><br>${SUBST.mva} MVA · ${SUBST.kv}`).openOn(map); }
+
+/* ---------- conmutador de módulos ---------- */
+let currentMod='panel';
+function setModule(mod){
+  currentMod=mod;
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.mod===mod));
+  titleEl.textContent=TITLES[mod];
+  [gLots,gLabels,gLum,gElec].forEach(g=>map.removeLayer(g));
+  if(mod==='panel'){ drawLots('dim'); gLots.addTo(map); renderPanel(); }
+  if(mod==='catastro'){ drawLots('full'); gLots.addTo(map); gLabels.addTo(map); activeFilter='todos'; renderCatastro(null); applyFilter(); }
+  if(mod==='inquilinos'){ drawLots('inq'); gLots.addTo(map); gLabels.addTo(map); renderInquilinos(); }
+  if(mod==='alumbrado'){ drawLots('dim'); gLots.addTo(map); drawLum(); gLum.addTo(map); renderAlumbrado(null); }
+  if(mod==='activos'){ drawLots('dim'); gLots.addTo(map); drawElec(); gElec.addTo(map); renderActivos(null); }
+}
+document.getElementById('nav').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(b) setModule(b.dataset.mod);
+});
+
+/* ---------- búsqueda ---------- */
+document.getElementById('search').addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const q=e.target.value.trim().toLowerCase();
+  const L=LOTS.find(x=>x.id.toLowerCase()===q || (x.tenant&&x.tenant.toLowerCase().includes(q)));
+  if(L){ setModule('catastro'); selectLot(L); }
+});
+
+/* ---------- status bar ---------- */
+document.getElementById('st-center').textContent=C[0].toFixed(4)+', '+C[1].toFixed(4);
+map.on('mousemove',e=>document.getElementById('st-cursor').textContent=e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5));
+map.on('zoomend',()=>document.getElementById('st-zoom').textContent=map.getZoom());
+
+/* init */
+setModule('panel');
+</script>
+</body>
+</html>
